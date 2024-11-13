@@ -17,7 +17,7 @@ config = {
     "patch_size": 3,
     "noise": True,
     "perlin": True,
-    "perlin_thr": 0.6,  
+    "perlin_thr": 0.6,
     "no_anomaly": "empty",
     "bad": True,
     "overlap": True,
@@ -41,22 +41,27 @@ model = SuperSimpleNet(image_size=config["image_size"], config=config)
 
 # Load weights from file
 # weight_path = "results/superSimpleNet/checkpoints/cracked_screen/cracked_screen/weights.pt"
-weight_path = "results/superSimpleNet/checkpoints/mvtec/bottle/weights.pt"
-model.load_state_dict(torch.load(weight_path, map_location=torch.device('cpu')), strict=False)
+# weight_path = "results/superSimpleNet/checkpoints/mvtec/bottle/weights.pt"
+weight_path = "/home/mtahackathon/Documents/SuperrSimpleNet/SuperSimpleNet/results/final_model.pth"
+model.load_state_dict(
+    torch.load(weight_path, map_location=torch.device("cpu")), strict=False
+)
 model.eval()  # Set model to inference mode
 
 # Load and process image
-image_path = "datasets/MSD-US/test/stain/Sta_0007.jpg"
+image_path = "/home/mtahackathon/Documents/SuperrSimpleNet/SuperSimpleNet/datasets/MSD-US/test/stain/Sta_0005.jpg"
 image = Image.open(image_path).convert("RGB")
 
 # Keep track of original size
 original_size = image.size  # original_size = (width, height)
 
 # Define transform and apply
-transform = transforms.Compose([
-    transforms.Resize(config["image_size"]),  # Resize theo (height, width)
-    transforms.ToTensor(),
-])
+transform = transforms.Compose(
+    [
+        transforms.Resize(config["image_size"]),  # Resize theo (height, width)
+        transforms.ToTensor(),
+    ]
+)
 
 # transform = transforms.Compose([
 #     transforms.Resize((config["image_size"][1], config["image_size"][0])),  # Resize theo (width, height)
@@ -84,7 +89,9 @@ if anomaly_map.shape != config["image_size"]:
 
 # Apply threshold to anomaly map to create a binary segmentation mask
 threshold = 1.2  # You may need to adjust this value
-segmentation_mask = (anomaly_map > threshold).type(torch.uint8)  # Use torch operations instead of numpy
+segmentation_mask = (anomaly_map > threshold).type(
+    torch.uint8
+)  # Use torch operations instead of numpy
 
 
 # Display original image, anomaly map, and segmentation result
@@ -112,4 +119,3 @@ axs[2].set_title("Segmentation Mask")
 axs[2].axis("off")
 
 plt.savefig("segmentation_result_fixed_gpu.png")
-

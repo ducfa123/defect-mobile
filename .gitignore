@@ -4,3 +4,9 @@ datasets/
 runs/
 /results
 __pycache__/
+final_model.pth
+yolo_screen_detect/model/yolov10n.pt
+yolo_screen_detect/yolov8n.pt
+rs/weights.pt
+segmentation_result_fixed_gpu.png
+yolo_screen_detect/duc_data/*

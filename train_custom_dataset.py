@@ -12,6 +12,7 @@ from common.results_writer import ResultsWriter
 from common.loss import focal_loss
 from tqdm import tqdm
 from torchmetrics import AveragePrecision, Metric
+
 # from torchmetrics.classification import AUROC
 from anomalib.utils.metrics import AUROC, AUPRO
 
@@ -326,21 +327,15 @@ class AnomalyGenerator(nn.Module):
         """
         perlin = []
         for _ in range(batches):
-            perlin_scalex = (
-                2
-                ** (
-                    torch.randint(
-                        self.min_perlin_scale, self.max_perlin_scale, (1,)
-                    ).numpy()[0]
-                )
+            perlin_scalex = 2 ** (
+                torch.randint(
+                    self.min_perlin_scale, self.max_perlin_scale, (1,)
+                ).numpy()[0]
             )
-            perlin_scaley = (
-                2
-                ** (
-                    torch.randint(
-                        self.min_perlin_scale, self.max_perlin_scale, (1,)
-                    ).numpy()[0]
-                )
+            perlin_scaley = 2 ** (
+                torch.randint(
+                    self.min_perlin_scale, self.max_perlin_scale, (1,)
+                ).numpy()[0]
             )
 
             perlin_noise = rand_perlin_2d(
@@ -378,8 +373,9 @@ class AnomalyGenerator(nn.Module):
         # duplicate input, mask, and labels
         input = torch.cat((input, input))
         mask = torch.cat((mask, mask))
-        labels = labels.repeat(2, 1)  # Sử dụng repeat để nhân đôi mà giữ nguyên kích thước hợp lý
-
+        labels = labels.repeat(
+            2, 1
+        )  # Sử dụng repeat để nhân đôi mà giữ nguyên kích thước hợp lý
 
         noise = torch.normal(
             mean=self.noise_mean,
@@ -414,14 +410,12 @@ class AnomalyGenerator(nn.Module):
         # make new labels. 1 if any part of mask is 1, 0 otherwise
         new_anomalous = mask.reshape(input.size(0), -1).any(dim=1).type(torch.float32)
 
-
         # Ensure labels have the same size as new_anomalous
         if labels.dim() > 1:
             labels = labels.view(-1)
 
         if labels.size(0) != new_anomalous.size(0):
-            labels = labels[:new_anomalous.size(0)]
-
+            labels = labels[: new_anomalous.size(0)]
 
         # Perform addition after ensuring the sizes match
         labels = labels + new_anomalous
@@ -433,7 +427,6 @@ class AnomalyGenerator(nn.Module):
         perturbed = input + noise * noise_mask
 
         return perturbed, mask, labels
-
 
 
 class AnomalyMapGenerator(nn.Module):
@@ -448,9 +441,11 @@ class AnomalyMapGenerator(nn.Module):
         anomaly_map = F.interpolate(input, size=self.size, mode="bilinear")
         anomaly_map = self.blur(anomaly_map)
         return anomaly_map
+
+
 # Class CrackedScreenDataset to read data from XML files
 class CrackedScreenDataset(Dataset):
-    def __init__(self, image_files, mask_files=None, transform=None, mode='train'):
+    def __init__(self, image_files, mask_files=None, transform=None, mode="train"):
         """
         Args:
             image_files (list): Danh sách các đường dẫn đến ảnh.
@@ -463,11 +458,11 @@ class CrackedScreenDataset(Dataset):
         self.transform = transform
         self.mode = mode
 
-        if mode not in ['train', 'test']:
+        if mode not in ["train", "test"]:
             raise ValueError("Mode must be either 'train' hoặc 'test'")
 
         # Nếu ở chế độ test, cần có các mask để đánh giá
-        if mode == 'test' and mask_files is None:
+        if mode == "test" and mask_files is None:
             raise ValueError("Cần cung cấp mask_files cho chế độ test")
 
     def __len__(self):
@@ -476,25 +471,25 @@ class CrackedScreenDataset(Dataset):
     def __getitem__(self, idx):
         # Load ảnh
         img_path = self.image_files[idx]
-        image = Image.open(img_path).convert('RGB')
+        image = Image.open(img_path).convert("RGB")
 
         # Áp dụng phép biến đổi lên ảnh nếu có
         if self.transform:
             image = self.transform(image)
 
-        if self.mode == 'train':
+        if self.mode == "train":
             # Tập train chỉ có nhãn 'good' (không có mask)
-            target = {'label': 0}  # Nhãn 0 cho ảnh 'good'
-        elif self.mode == 'test':
+            target = {"label": 0}  # Nhãn 0 cho ảnh 'good'
+        elif self.mode == "test":
             # Load mask tương ứng
             mask_path = self.mask_files[idx]
-            mask = Image.open(mask_path).convert('L')
+            mask = Image.open(mask_path).convert("L")
 
             # Chuyển đổi mask thành tensor nếu có phép biến đổi
             if self.transform:
                 mask = self.transform(mask)
 
-            target = {'label': 1, 'mask': mask}  # Nhãn 1 cho ảnh có lỗi
+            target = {"label": 1, "mask": mask}  # Nhãn 1 cho ảnh có lỗi
 
         return image, target
 
@@ -507,11 +502,20 @@ def collate_fn(batch):
 
     # Tiền xử lý các mask nếu có
     masks = None
-    if any('mask' in target for target in targets):
-        masks = torch.stack([target['mask'] if 'mask' in target else torch.zeros_like(targets[0]['mask']) for target in targets])
+    if any("mask" in target for target in targets):
+        masks = torch.stack(
+            [
+                (
+                    target["mask"]
+                    if "mask" in target
+                    else torch.zeros_like(targets[0]["mask"])
+                )
+                for target in targets
+            ]
+        )
 
     # Tiền xử lý nhãn (labels)
-    labels = torch.tensor([target['label'] for target in targets])
+    labels = torch.tensor([target["label"] for target in targets])
 
     # Trả về kết quả
     if masks is not None:
@@ -522,10 +526,13 @@ def collate_fn(batch):
 
 from sklearn.model_selection import train_test_split
 
+
 # Sửa lại lớp DataModule để sử dụng `collate_fn` tùy chỉnh
 # Sửa lại lớp DataModule để sử dụng `collate_fn` tùy chỉnh
 class CrackedScreenDataModule(LightningDataModule):
-    def __init__(self, dataset_path, image_size, train_batch_size, eval_batch_size, num_workers):
+    def __init__(
+        self, dataset_path, image_size, train_batch_size, eval_batch_size, num_workers
+    ):
         super().__init__()
         self.dataset_path = dataset_path
         self.image_size = image_size
@@ -534,46 +541,77 @@ class CrackedScreenDataModule(LightningDataModule):
         self.num_workers = num_workers
 
         # Define image transformations
-        self.transform = transforms.Compose([
-            transforms.Resize(self.image_size),
-            transforms.ToTensor(),
-        ])
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize(self.image_size),
+                transforms.ToTensor(),
+            ]
+        )
 
     def setup(self, stage=None):
         # Load the list of image files from training folder (good)
-        train_folder = os.path.join(self.dataset_path, 'train', 'good')
-        train_image_files = sorted([os.path.join(train_folder, f) for f in os.listdir(train_folder)])
+        train_folder = os.path.join(self.dataset_path, "train", "good")
+        train_image_files = sorted(
+            [os.path.join(train_folder, f) for f in os.listdir(train_folder)]
+        )
 
         # Load the list of image and mask files from testing folders (oil, scratch, stain, ground_truth)
         test_image_files = []
         defect_folders = ["oil", "scratch", "stain"]
         for defect_folder in defect_folders:
-            folder_path = os.path.join(self.dataset_path, 'test', defect_folder)
+            folder_path = os.path.join(self.dataset_path, "test", defect_folder)
             image_files = sorted(os.listdir(folder_path))
             test_image_files.extend([os.path.join(folder_path, f) for f in image_files])
 
         # Load mask files from `ground_truth`
-        mask_folder = os.path.join(self.dataset_path, 'test', 'ground_truth')
-        test_mask_files = sorted([os.path.join(mask_folder, f) for f in os.listdir(mask_folder)])
+        mask_folder = os.path.join(self.dataset_path, "test", "ground_truth")
+        test_mask_files = sorted(
+            [os.path.join(mask_folder, f) for f in os.listdir(mask_folder)]
+        )
 
         # Ensure that image and mask files match
-        assert len(test_image_files) == len(test_mask_files), "Number of test images and masks must be the same"
+        assert len(test_image_files) == len(
+            test_mask_files
+        ), "Number of test images and masks must be the same"
 
         # Split the dataset into training and testing sets
-        train_mask_files = [None] * len(train_image_files)  # No masks for training images
+        train_mask_files = [None] * len(
+            train_image_files
+        )  # No masks for training images
 
         # Create the train and test datasets
-        self.train_dataset = CrackedScreenDataset(train_image_files, train_mask_files, self.transform, mode='train')
-        self.test_dataset = CrackedScreenDataset(test_image_files, test_mask_files, self.transform, mode='test')
+        self.train_dataset = CrackedScreenDataset(
+            train_image_files, train_mask_files, self.transform, mode="train"
+        )
+        self.test_dataset = CrackedScreenDataset(
+            test_image_files, test_mask_files, self.transform, mode="test"
+        )
 
     def train_dataloader(self):
-        return DataLoader(self.train_dataset, batch_size=self.train_batch_size, num_workers=self.num_workers, shuffle=True, collate_fn=collate_fn)
+        return DataLoader(
+            self.train_dataset,
+            batch_size=self.train_batch_size,
+            num_workers=self.num_workers,
+            shuffle=True,
+            collate_fn=collate_fn,
+        )
 
     def val_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.eval_batch_size, num_workers=self.num_workers, collate_fn=collate_fn)
+        return DataLoader(
+            self.test_dataset,
+            batch_size=self.eval_batch_size,
+            num_workers=self.num_workers,
+            collate_fn=collate_fn,
+        )
 
     def test_dataloader(self):
-        return DataLoader(self.test_dataset, batch_size=self.eval_batch_size, num_workers=self.num_workers, collate_fn=collate_fn)
+        return DataLoader(
+            self.test_dataset,
+            batch_size=self.eval_batch_size,
+            num_workers=self.num_workers,
+            collate_fn=collate_fn,
+        )
+
 
 def train(
     model: SuperSimpleNet,
@@ -609,15 +647,19 @@ def train(
                 image_batch = image_batch.to(device)
 
                 # Extract the mask from the target if available
-                if 'mask' in target:
-                    mask = target['mask'].to(device).type(torch.float32)
+                if "mask" in target:
+                    mask = target["mask"].to(device).type(torch.float32)
 
                     # Đảm bảo rằng `mask` có 4 chiều (N, C, H, W)
                     if mask.dim() == 3:  # Nếu mask có dạng (N, H, W)
-                        mask = mask.unsqueeze(1)  # Thêm chiều kênh để có dạng (N, 1, H, W)
+                        mask = mask.unsqueeze(
+                            1
+                        )  # Thêm chiều kênh để có dạng (N, 1, H, W)
                 else:
                     # Nếu không có mask (tức là tập train), tạo mask bằng 0
-                    mask = torch.zeros((image_batch.size(0), 1, model.fh, model.fw), device=device)
+                    mask = torch.zeros(
+                        (image_batch.size(0), 1, model.fh, model.fw), device=device
+                    )
 
                 # Resize mask
                 mask = F.interpolate(
@@ -630,7 +672,7 @@ def train(
                     mask < 0.5, torch.zeros_like(mask), torch.ones_like(mask)
                 )
 
-                label = target['labels'].to(device).type(torch.float32)
+                label = target["labels"].to(device).type(torch.float32)
 
                 # Forward pass
                 try:
@@ -640,7 +682,9 @@ def train(
 
                     # Adjust label dimensions if necessary
                     if label.dim() > 1 and label.size(1) != 1:
-                        print(f"Warning: Adjusting label size from {label.size()} to {(label.size(0), 1)}")
+                        print(
+                            f"Warning: Adjusting label size from {label.size()} to {(label.size(0), 1)}"
+                        )
                         label = label[:, :1]  # Adjust to match expected shape
 
                 except RuntimeError as e:
@@ -667,7 +711,12 @@ def train(
                     fake_loss = torch.tensor(0.0, device=device)
 
                 # Resize mask to match anomaly_map size
-                mask_resized = F.interpolate(mask, size=anomaly_map.shape[-2:], mode="bilinear", align_corners=False)
+                mask_resized = F.interpolate(
+                    mask,
+                    size=anomaly_map.shape[-2:],
+                    mode="bilinear",
+                    align_corners=False,
+                )
                 mask_resized = mask_resized.view(-1)
 
                 # Flatten anomaly_map and mask for focal loss computation
@@ -727,6 +776,7 @@ def train(
         scheduler.step()
 
     return results
+
 
 @torch.no_grad()
 def test(
@@ -791,16 +841,28 @@ def test(
             if "mask" in targets:
                 mask_batch = targets["mask"]
                 label_batch = targets["labels"]
-                image_path_batch = targets.get("image_path", [""] * len(label_batch))  # Thêm giá trị mặc định nếu không có
-                mask_path_batch = targets.get("mask_path", [""] * len(label_batch))  # Thêm giá trị mặc định nếu không có
+                image_path_batch = targets.get(
+                    "image_path", [""] * len(label_batch)
+                )  # Thêm giá trị mặc định nếu không có
+                mask_path_batch = targets.get(
+                    "mask_path", [""] * len(label_batch)
+                )  # Thêm giá trị mặc định nếu không có
             else:
                 # Trường hợp không có mask
-                mask_batch = torch.zeros((image_batch.size(0), 1, model.fh, model.fw), device=device)
+                mask_batch = torch.zeros(
+                    (image_batch.size(0), 1, model.fh, model.fw), device=device
+                )
                 label_batch = targets["labels"]
-                image_path_batch = [""] * len(label_batch)  # Thêm giá trị mặc định nếu không có
-                mask_path_batch = [""] * len(label_batch)  # Thêm giá trị mặc định nếu không có
+                image_path_batch = [""] * len(
+                    label_batch
+                )  # Thêm giá trị mặc định nếu không có
+                mask_path_batch = [""] * len(
+                    label_batch
+                )  # Thêm giá trị mặc định nếu không có
         else:
-            raise TypeError("Unexpected batch type or number of elements: {}".format(type(batch)))
+            raise TypeError(
+                "Unexpected batch type or number of elements: {}".format(type(batch))
+            )
 
         # Kiểm tra dữ liệu trống hoặc không hợp lệ trong batch
         if len(image_batch) == 0:
@@ -832,7 +894,7 @@ def test(
             # Nếu mask chỉ có 2 chiều (H, W), thêm 1 chiều thành (1, H, W)
             if len(mask.shape) == 2:
                 mask = mask.unsqueeze(0)
-            
+
             # Pad mask để tất cả các mask có cùng kích thước
             pad_height = max_height - mask.shape[-2]
             pad_width = max_width - mask.shape[-1]
@@ -846,7 +908,9 @@ def test(
         results["anomaly_map"].append(anomaly_map)
         results["gt_mask"].append(gt_mask)
         results["score"].append(torch.sigmoid(anomaly_score))
-        results["seg_score"].append(anomaly_map.reshape(anomaly_map.shape[0], -1).max(dim=1).values)
+        results["seg_score"].append(
+            anomaly_map.reshape(anomaly_map.shape[0], -1).max(dim=1).values
+        )
         results["label"].append(label_batch.detach().cpu())
         results["image_path"].extend(image_path_batch)
         results["mask_path"].extend(mask_path_batch)
@@ -867,7 +931,8 @@ def test(
         results["anomaly_map"] = (
             results["anomaly_map"] - results["anomaly_map"].flatten().min()
         ) / (
-            results["anomaly_map"].flatten().max() - results["anomaly_map"].flatten().min()
+            results["anomaly_map"].flatten().max()
+            - results["anomaly_map"].flatten().min()
         )
         results["score"] = (results["score"] - results["score"].min()) / (
             results["score"].max() - results["score"].min()
@@ -879,7 +944,11 @@ def test(
     # Tính toán metrics cho kết quả ảnh
     results_dict = {}
     for name, metric in image_metrics.items():
-        if metric.preds is not None and metric.target is not None and len(metric.preds) > 0:
+        if (
+            metric.preds is not None
+            and metric.target is not None
+            and len(metric.preds) > 0
+        ):
             metric_result = metric.to(device).compute()
             if isinstance(metric_result, tuple):
                 # Nếu kết quả là tuple, xử lý từng phần tử của nó
@@ -892,7 +961,11 @@ def test(
         metric.to("cpu")
 
     for name, metric in seg_image_metrics.items():
-        if metric.preds is not None and metric.target is not None and len(metric.preds) > 0:
+        if (
+            metric.preds is not None
+            and metric.target is not None
+            and len(metric.preds) > 0
+        ):
             metric_result = metric.to(device).compute()
             if isinstance(metric_result, tuple):
                 # Nếu kết quả là tuple, xử lý từng phần tử của nó
@@ -912,7 +985,11 @@ def test(
             am[am != am] = 0
             results["anomaly_map"] = am
 
-            if metric.preds is not None and metric.target is not None and len(metric.preds) > 0:
+            if (
+                metric.preds is not None
+                and metric.target is not None
+                and len(metric.preds) > 0
+            ):
                 metric_result = metric.to(device).compute()
                 if isinstance(metric_result, tuple):
                     # Nếu kết quả là tuple, xử lý từng phần tử của nó
@@ -930,7 +1007,6 @@ def test(
     for name, value in results_dict.items():
         print(f"{name}: {value} ", end="")
     print()
-
 
     # Lưu kết quả điểm số nếu cần
     score_dict = {}
@@ -962,6 +1038,7 @@ def test(
 
     return results_dict
 
+
 def train_and_eval(model, datamodule, config, device):
     if LOG_WANDB:
         os.environ["WANDB__SERVICE_WAIT"] = "300"
@@ -969,12 +1046,12 @@ def train_and_eval(model, datamodule, config, device):
 
     image_metrics = {
         "I-AUROC": AUROC(task="binary"),
-        "AP-det": AveragePrecision(num_classes=1,task="binary"),
+        "AP-det": AveragePrecision(num_classes=1, task="binary"),
     }
     pixel_metrics = {
         "P-AUROC": AUROC(task="binary"),
         "AUPRO": AUPRO(),
-        "AP-loc": AveragePrecision(num_classes=1,task="binary"),
+        "AP-loc": AveragePrecision(num_classes=1, task="binary"),
     }
 
     train(
@@ -1054,7 +1131,6 @@ def main_cracked_screen(device, config):
             num_workers=config["num_workers"],
         )
 
-
         datamodule.setup()
 
         # Check if data is loaded properly
@@ -1070,16 +1146,19 @@ def main_cracked_screen(device, config):
         results = train_and_eval(
             model=model, datamodule=datamodule, config=config, device=device
         )
-        print("results",results)
+        print("results", results)
         if results is not None:
             results_writer.add_result(
                 category="cracked_screen",
                 last=results,
             )
             results_writer.save(
-                Path(config["results_save_path"]) / config["setup_name"] / config["dataset"]
+                Path(config["results_save_path"])
+                / config["setup_name"]
+                / config["dataset"]
             )
         print("Training completed.")
+
 
 # Example call to run the training process
 def main():
@@ -1095,7 +1174,7 @@ def main():
         "patch_size": 3,
         "noise": True,
         "perlin": True,
-        "perlin_thr": 0.6,  
+        "perlin_thr": 0.6,
         "no_anomaly": "empty",
         "bad": True,
         "overlap": True,  # makes no difference, just faster if false to avoid computation
@@ -1118,6 +1197,7 @@ def main():
     print("Initializing training...")
     main_cracked_screen(device=device, config=config)
     print("All processes completed.")
+
 
 if __name__ == "__main__":
     main()

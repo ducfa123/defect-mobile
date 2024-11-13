@@ -64,24 +64,37 @@ class SuperSimpleNet(nn.Module):
         mask: Tensor = None,
         label: Tensor = None,
     ) -> Tensor | tuple[Tensor, Tensor]:
-        # feature extraction, upscaling and neigh. aggregation
+        # Feature extraction, upscaling, and neighborhood aggregation
         # [B, F_dim, H, W]
         features = self.feature_extractor(images)
         adapted = self.feature_adaptor(features)
 
         if self.training:
-            # add noise to features
+            # Check if `mask` and `label` are provided; if not, create placeholders
+            if mask is None:
+                b, _, h, w = (
+                    adapted.size()
+                )  # Batch size and spatial dimensions from `adapted`
+                mask = torch.zeros((b, 1, h, w), device=images.device)
+
+            if label is None:
+                label = torch.zeros(b, device=images.device)
+
+            # Add noise to features if required by config
             if self.config["noise"]:
-                # also returns adjusted labels and masks
+                # anomaly_generator may alter `mask` and `label` if provided
                 final_features, mask, label = self.anomaly_generator(
                     adapted, mask, label
                 )
             else:
                 final_features = adapted
 
+            # Pass through discriminator
             anomaly_map, anomaly_score = self.discriminator(final_features)
             return anomaly_map, anomaly_score, mask, label
+
         else:
+            # In evaluation mode (no mask needed)
             anomaly_map, anomaly_score = self.discriminator(adapted)
             anomaly_map = self.anomaly_map_generator(anomaly_map)
 
@@ -292,21 +305,15 @@ class AnomalyGenerator(nn.Module):
         """
         perlin = []
         for _ in range(batches):
-            perlin_scalex = (
-                2
-                ** (
-                    torch.randint(
-                        self.min_perlin_scale, self.max_perlin_scale, (1,)
-                    ).numpy()[0]
-                )
+            perlin_scalex = 2 ** (
+                torch.randint(
+                    self.min_perlin_scale, self.max_perlin_scale, (1,)
+                ).numpy()[0]
             )
-            perlin_scaley = (
-                2
-                ** (
-                    torch.randint(
-                        self.min_perlin_scale, self.max_perlin_scale, (1,)
-                    ).numpy()[0]
-                )
+            perlin_scaley = 2 ** (
+                torch.randint(
+                    self.min_perlin_scale, self.max_perlin_scale, (1,)
+                ).numpy()[0]
             )
 
             perlin_noise = rand_perlin_2d(
